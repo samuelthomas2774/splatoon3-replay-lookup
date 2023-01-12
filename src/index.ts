@@ -108,7 +108,13 @@ class Server {
         if (!match) throw new ResponseError(500, 'unknown_error', 'Error decoding replay ID');
         const npln_user_id = match[1];
 
+        const code_formatted = code.replace(/^([A-Z0-9]{4})([A-Z0-9]{4})([A-Z0-9]{4})([A-Z0-9]{4})$/, '$1-$2-$3-$4');
+        const share_url = 'https://s.nintendo.com/av5ja-lp1/znca/game/4834290508791808?p=' +
+            encodeURIComponent('/replay?code=' + encodeURIComponent(code_formatted));
+
         return {
+            code,
+            share_url,
             replay: data.replay,
             request_id: data.request_id,
             npln_user_id,
