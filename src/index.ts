@@ -15,7 +15,7 @@ interface ReplayData {
 
 const debug = createDebug('splatoon3-replay-lookup');
 
-const product = 'splatoon3-replay-lookup/0.2.0';
+const product = 'splatoon3-replay-lookup/0.2.1';
 addUserAgent(product);
 
 const REPLAY_CODE_REGEX = /^[A-Z0-9]{16}$/;
@@ -199,6 +199,7 @@ const splatnet = await users.get(SplatNet3, process.env.NA_USER_ID!);
 const cache = persist.create({
     dir: fileURLToPath(new URL('../data/persist', import.meta.url)),
     stringify: data => JSON.stringify(data, null, 4) + '\n',
+    expiredInterval: 0,
 });
 await cache.init();
 
