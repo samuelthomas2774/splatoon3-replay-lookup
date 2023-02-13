@@ -7,11 +7,11 @@ services:
     labels:
       traefik.enable: true
       traefik.http.routers.splatoon3-replay-lookup.entrypoints: websecure
-      traefik.http.routers.splatoon3-replay-lookup.rule: Host(`${TRAEFIK_HOST:-nxapi.ta.fancy.org.uk}`) && PathPrefix(`/api/splatnet3/replay`)
+      traefik.http.routers.splatoon3-replay-lookup.rule: Host(`${TRAEFIK_HOST:-nxapi.ta.fancy.org.uk}`) && PathPrefix(`/api/splatnet3`)
       traefik.http.routers.splatoon3-replay-lookup.tls: true
       traefik.http.services.splatoon3-replay-lookup.loadbalancer.server.port: 8080
     environment:
-      DEBUG: '*,-express:*'
+      DEBUG: '*,-express:*,-send'
       NA_USER_ID: ${NA_USER_ID:?}
     volumes:
       - data:/data

@@ -1,5 +1,7 @@
+import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
 import { Storage, LocalStorageProvider, Users, ErrorResponse, version, addUserAgent } from 'nxapi';
 import { RequestIdSymbol, SplatNet3 } from 'nxapi/splatnet3';
 import createDebug from 'debug';
@@ -15,15 +17,18 @@ interface ReplayData {
 
 const debug = createDebug('splatoon3-replay-lookup');
 
-const product = 'splatoon3-replay-lookup/0.2.1';
+const product = 'splatoon3-replay-lookup/0.3.0';
 addUserAgent(product);
 
 const REPLAY_CODE_REGEX = /^[A-Z0-9]{16}$/;
+
+const ResourceUrlMapSymbol = Symbol('ResourceUrls');
 
 class Server {
     readonly app: express.Express;
 
     readonly promise = new Map<string, Promise<ReplayData>>();
+    readonly promise_image = new Map<string, Promise<string>>();
 
     constructor(
         readonly splatnet: SplatNet3,
@@ -44,6 +49,9 @@ class Server {
 
             next();
         });
+
+        app.use('/api/splatnet3/resources', express.static(fileURLToPath(
+            new URL('../data/resources', import.meta.url)), {redirect: false}));
 
         app.get('/api/splatnet3/replay/:code', this.createApiRequestHandler((req, res) =>
             this.handleReplayRequest(req, res, req.params.code)));
@@ -71,7 +79,20 @@ class Server {
     }
 
     protected encodeJsonForResponse(data: unknown, space?: number) {
-        return JSON.stringify(data, null, space);
+        const url_map = data && typeof data === 'object' && ResourceUrlMapSymbol in data &&
+            data[ResourceUrlMapSymbol] && typeof data[ResourceUrlMapSymbol] === 'object' ?
+                data[ResourceUrlMapSymbol] as Partial<Record<string, string>> : null;
+
+        return JSON.stringify(data, (key: string, value: unknown) => {
+            if (typeof value === 'object' && value && 'url' in value && typeof value.url === 'string') {
+                return {
+                    ...value,
+                    url: url_map?.[value.url] ?? value.url,
+                };
+            }
+
+            return value;
+        }, space);
     }
 
     protected handleRequestError(req: Request, res: Response, err: unknown) {
@@ -112,12 +133,19 @@ class Server {
         const share_url = 'https://s.nintendo.com/av5ja-lp1/znca/game/4834290508791808?p=' +
             encodeURIComponent('/replay?code=' + encodeURIComponent(code_formatted));
 
+        const base_url = process.env.BASE_URL ??
+            (req.headers['x-forwarded-proto'] === 'https' ? 'https://' : 'http://') +
+            req.headers.host;
+        const resources_url = base_url + '/api/splatnet3/resources/';
+        const images = await this.downloadImages(data.replay, resources_url);
+
         return {
             code,
             share_url,
             replay: data.replay,
             request_id: data.request_id,
             npln_user_id,
+            [ResourceUrlMapSymbol]: images,
         };
     }
 
@@ -169,6 +197,67 @@ class Server {
         });
 
         this.promise.set(code, promise);
+
+        return promise;
+    }
+
+    async downloadImages(data: unknown, base_url?: string): Promise<Record<string, string>> {
+        const image_urls: string[] = [];
+
+        // Use JSON.stringify to iterate over everything in the response
+        JSON.stringify(data, (key: string, value: unknown) => {
+            if (typeof value === 'object' && value && 'url' in value && typeof value.url === 'string') {
+                if (value.url.toLowerCase().startsWith('https://api.lp1.av5ja.srv.nintendo.net/')) {
+                    image_urls.push(value.url);
+                }
+            }
+
+            return value;
+        });
+
+        const url_map: Record<string, string> = {};
+
+        await Promise.all(image_urls.map(async url => {
+            url_map[url] = new URL(await this.downloadImage(url), base_url).toString();
+        }));
+
+        return url_map;
+    }
+
+    downloadImage(url: string) {
+        const name = new URL(url).pathname.substr(1).toLowerCase()
+            .replace(/^resources\//g, '')
+            .replace(/(\/|^)\.\.(\/|$)/g, '$1...$2');
+
+        const promise = this.promise_image.get(name) ?? Promise.resolve().then(async () => {
+            try {
+                await fs.stat(new URL('../data/resources/' + name, import.meta.url));
+
+                debug('Already downloaded image %s', name);
+                return name;
+            } catch (err) {}
+
+            debug('Fetching image %s', name);
+            const response = await fetch(url);
+            const data = new Uint8Array(await response.arrayBuffer());
+
+            if (!response.ok) throw new ErrorResponse('Unable to download resource ' + name, response, data.toString());
+
+            await fs.mkdir(dirname(fileURLToPath(new URL('../data/resources/' + name, import.meta.url))), {recursive: true});
+            await fs.writeFile(new URL('../data/resources/' + name, import.meta.url), data);
+
+            debug('Downloaded image %s', name);
+
+            return name;
+        }).then(result => {
+            this.promise_image.delete(name);
+            return result;
+        }).catch(err => {
+            this.promise_image.delete(name);
+            throw err;
+        });
+
+        this.promise_image.set(name, promise);
 
         return promise;
     }

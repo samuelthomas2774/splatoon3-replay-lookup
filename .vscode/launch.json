@@ -12,7 +12,7 @@
             "program": "dist/index.js",
             "outputCapture": "std",
             "env": {
-                "DEBUG": "*,-express:*,-body-parser:*",
+                "DEBUG": "*,-express:*,-body-parser:*,-send",
                 "DEBUG_COLORS": "1",
                 "FORCE_COLOR": "3"
             },
