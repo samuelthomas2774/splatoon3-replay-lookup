@@ -5,8 +5,8 @@
         "debug": "^4.3.4",
         "express": "^4.18.2",
         "node-persist": "^3.1.0",
-        "nxapi": "^1.6.0-next.0",
-        "splatnet3-types": "^0.2.20221212221842"
+        "nxapi": "^1.6.0-next.22",
+        "splatnet3-types": "^0.2.20230227204004"
     },
     "devDependencies": {
         "@types/debug": "^4.1.7",

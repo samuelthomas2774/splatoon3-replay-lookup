@@ -17,7 +17,7 @@ interface ReplayData {
 
 const debug = createDebug('splatoon3-replay-lookup');
 
-const product = 'splatoon3-replay-lookup/0.3.0';
+const product = 'splatoon3-replay-lookup/0.3.1';
 addUserAgent(product);
 
 const REPLAY_CODE_REGEX = /^[A-Z0-9]{16}$/;
